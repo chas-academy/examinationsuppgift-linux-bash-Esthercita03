@@ -51,7 +51,7 @@ for username in "$@"; do
     WELCOME_FILE="$USER_HOME/welcome.txt"
     
     # Line 1: Personalized welcome message
-    echo "Welcome $username" > "$WELCOME_FILE"
+    echo "Välkommen $username" > "$WELCOME_FILE"
     
     # Line 2+: List of all existing users in the system
     cut -d: -f1 /etc/passwd >> "$WELCOME_FILE"
