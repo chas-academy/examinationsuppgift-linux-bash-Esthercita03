@@ -1,37 +1,39 @@
 #!/bin/bash
+# ^ ser till att rätt shebang används.
 
-# 1. Grundstruktur och Behörighet
-# Scriptet kontrollerar att det körs som root (UID 0)
-if [[ $EUID -ne 0 ]]; then
-   echo "Detta script måste köras som root."
-   exit 1
+# Kollar så att root används med att kolla vilket UID och det ska vara 0.
+if [ "$EUID" -ne 0 ]; then
+    echo "Du måste vara root för att köra create_user.sh"
+    exit 1
 fi
 
-# 2. Skapa ALLA användare först
-# Vi loopar igenom alla argument och skapar användarna så att de finns i /etc/passwd
-for username in "$@"; do
-    if ! id "$username" &>/dev/null; then
-        useradd -m "$username"
-    fi
+    # I första loopen skapar vi användare och mappar, sätter sedan korrekta rättigheter och ägare.
+for user in "$@"; do
+    useradd -m "$user"
+
+    # Skapa mapparna i respektive användares home folder.
+    mkdir /home/$user/Documents /home/$user/Downloads /home/$user/Work
+
+    # Sätter korrekta läs/skriv rättigheter på mapparna.
+    chmod 700 /home/$user/Documents /home/$user/Downloads /home/$user/Work
+
+    # Sätter korrekt ägare av mapparna.
+    chown $user:$user /home/$user/Documents /home/$user/Downloads /home/$user/Work
+
 done
 
-# 3. Katalogstruktur och Välkomstmeddelande
-# Nu när alla användare finns i systemet skapar vi mappar och filer
-for username in "$@"; do
-    USER_HOME="/home/$username"
+    # Andra loopen körs separat för att alla användare ska finnas innan welcome.txt skapas, annars finns dom inte i systemet.
+    # Skapa välkomst meddelandet och sorterar och sätter korrekt ägare av filen.
 
-    # Skapa mappar: Documents, Downloads och Work
-    mkdir -p "$USER_HOME"/{Documents,Downloads,Work}
-    
-    # Sätt rättigheter: Endast ägaren får läsa/skriva (700)
-    chmod 700 "$USER_HOME/Documents" "$USER_HOME/Downloads" "$USER_HOME/Work"
+for user in "$@"; do
 
-    # 4. Välkomstmeddelande
-    WELCOME_FILE="$USER_HOME/welcome.txt"
-    
-    # Första raden: Välkommen <användare>
-    echo "Välkommen $username" > "$WELCOME_FILE"
-    
-    # Andra delen: Lista på ALLA andra användare i systemet
-    # Vi använder grep -v för att ta bort den aktuella användaren från sin egen lista
-    cut -d: -f1 /etc/passwd | grep -v "^$username$" >> "$WELCOME_FILE"
+    # Skapa välkomstfil med personligt meddelande.
+    echo "Välkommen $user" > /home/$user/welcome.txt
+
+    # Hämtar listan på alla användare i passwd filen och sorterar sedan bort aktuell användare
+    cut -d: -f1 /etc/passwd | grep -v "^$user$" >> /home/$user/welcome.txt
+
+    # Sätter användaren till ägare av välkomstfilen. 
+    chown $user:$user /home/$user/welcome.txt
+
+done
