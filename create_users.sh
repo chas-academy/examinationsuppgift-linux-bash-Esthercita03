@@ -2,38 +2,36 @@
 
 # 1. Grundstruktur och Behörighet
 if [[ $EUID -ne 0 ]]; then
-   echo "Error: Must be root"
    exit 1
 fi
 
+# Store the list of existing users BEFORE creating new ones
+# This ensures "already existing users" doesn't include the one we are currently creating.
+EXISTING_USERS=$(cut -d: -f1 /etc/passwd)
+
 for username in "$@"; do
     # 2. Användarskapande
-    # Create user only if they don't exist
-    if ! id "$username" &>/dev/null; then
-        useradd -m "$username"
+    if id "$username" &>/dev/null; then
+        continue
     fi
 
+    useradd -m "$username"
     USER_HOME="/home/$username"
 
     # 3. Katalogstruktur och Rättigheter
-    # Create folders first
     mkdir -p "$USER_HOME/Documents" "$USER_HOME/Downloads" "$USER_HOME/Work"
     
     # 4. Välkomstmeddelande
     WELCOME_FILE="$USER_HOME/welcome.txt"
     
-    # Create the file content exactly as requested
+    # Requirement: "Välkommen <användare>"
     echo "Välkommen $username" > "$WELCOME_FILE"
-    cut -d: -f1 /etc/passwd >> "$WELCOME_FILE"
-
-    # Final Security/Permission Step
-    # Set ownership for the entire home directory and all files inside
-    chown -R "$username":"$username" "$USER_HOME"
     
-    # Set specific permissions for the folders (Requirement: only owner can read/write)
-    chmod 700 "$USER_HOME/Documents" "$USER_HOME/Downloads" "$USER_HOME/Work"
-    # Ensure the welcome file is also private
-    chmod 600 "$WELCOME_FILE"
-	
+    # Requirement: List of all other users already in the system
+    echo "$EXISTING_USERS" >> "$WELCOME_FILE"
 
+    # Set Permissions and Ownership
+    # Ensure folders are only readable/writable by the owner (700)
+    chmod 700 "$USER_HOME/Documents" "$USER_HOME/Downloads" "$USER_HOME/Work"
+    chown -R "$username":"$username" "$USER_HOME"
 done
