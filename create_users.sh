@@ -1,37 +1,37 @@
 #!/bin/bash
 
 # 1. Grundstruktur och Behörighet
+# Scriptet kontrollerar att det körs som root (UID 0)
 if [[ $EUID -ne 0 ]]; then
+   echo "Detta script måste köras som root."
    exit 1
 fi
 
-# Store the list of existing users BEFORE creating new ones
-# This ensures "already existing users" doesn't include the one we are currently creating.
-EXISTING_USERS=$(cut -d: -f1 /etc/passwd)
-
+# 2. Skapa ALLA användare först
+# Vi loopar igenom alla argument och skapar användarna så att de finns i /etc/passwd
 for username in "$@"; do
-    # 2. Användarskapande
-    if id "$username" &>/dev/null; then
-        continue
+    if ! id "$username" &>/dev/null; then
+        useradd -m "$username"
     fi
+done
 
-    useradd -m "$username"
+# 3. Katalogstruktur och Välkomstmeddelande
+# Nu när alla användare finns i systemet skapar vi mappar och filer
+for username in "$@"; do
     USER_HOME="/home/$username"
 
-    # 3. Katalogstruktur och Rättigheter
-    mkdir -p "$USER_HOME/Documents" "$USER_HOME/Downloads" "$USER_HOME/Work"
+    # Skapa mappar: Documents, Downloads och Work
+    mkdir -p "$USER_HOME"/{Documents,Downloads,Work}
     
+    # Sätt rättigheter: Endast ägaren får läsa/skriva (700)
+    chmod 700 "$USER_HOME/Documents" "$USER_HOME/Downloads" "$USER_HOME/Work"
+
     # 4. Välkomstmeddelande
     WELCOME_FILE="$USER_HOME/welcome.txt"
     
-    # Requirement: "Välkommen <användare>"
+    # Första raden: Välkommen <användare>
     echo "Välkommen $username" > "$WELCOME_FILE"
     
-    # Requirement: List of all other users already in the system
-    echo "$EXISTING_USERS" >> "$WELCOME_FILE"
-
-    # Set Permissions and Ownership
-    # Ensure folders are only readable/writable by the owner (700)
-    chmod 700 "$USER_HOME/Documents" "$USER_HOME/Downloads" "$USER_HOME/Work"
-    chown -R "$username":"$username" "$USER_HOME"
-done
+    # Andra delen: Lista på ALLA andra användare i systemet
+    # Vi använder grep -v för att ta bort den aktuella användaren från sin egen lista
+    cut -d: -f1 /etc/passwd | grep -v "^$username$" >> "$WELCOME_FILE"
